@@ -5,7 +5,6 @@ export default async function handler(req, res) {
 
   try {
     const { imageBase64, mediaType, roomType, notes, userId } = req.body || {};
-    
     if (!imageBase64 || !mediaType) {
       return res.status(400).json({ error: "الصورة مفقودة" });
     }
@@ -13,7 +12,7 @@ export default async function handler(req, res) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // 1. التحقق من رصيد المستخدم في Supabase (إن وجد userId ومفاتيح Supabase)
+    // 1. فحص رصيد المستخدم من Supabase مباشرة عبر HTTP Fetch
     if (userId && supabaseUrl && supabaseKey) {
       try {
         const checkRes = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${userId}&select=credits`, {
@@ -94,7 +93,7 @@ export default async function handler(req, res) {
     const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
     const report = JSON.parse(cleaned);
 
-    // 2. خصم محاولة واحدة بعد نجاح التحليل
+    // 2. خصم نقطة واحدة بعد نجاح التحليل
     if (userId && supabaseUrl && supabaseKey) {
       try {
         const fetchUserRes = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${userId}&select=credits`, {
