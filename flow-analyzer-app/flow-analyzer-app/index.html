@@ -117,6 +117,8 @@ function SectionCard({ meta, data }) {
   );
 }
 
+const ANALYSES_PER_PAYMENT = 10;
+
 function PaywallGate({ onUnlock }) {
   const [status, setStatus] = useState("checking"); // checking | locked | error
 
@@ -132,7 +134,8 @@ function PaywallGate({ onUnlock }) {
       .then((data) => {
         if (data.paid) {
           sessionStorage.setItem("fa_paid_session", sessionId);
-          onUnlock();
+          sessionStorage.setItem("fa_analyses_remaining", String(ANALYSES_PER_PAYMENT));
+          onUnlock(ANALYSES_PER_PAYMENT);
         } else {
           setStatus("locked");
         }
@@ -169,6 +172,10 @@ function PaywallGate({ onUnlock }) {
 
 function FlowAnalyzer() {
   const [unlocked, setUnlocked] = useState(() => !!sessionStorage.getItem("fa_paid_session"));
+  const [remaining, setRemaining] = useState(() => {
+    const stored = sessionStorage.getItem("fa_analyses_remaining");
+    return stored ? parseInt(stored, 10) : 0;
+  });
   const [step, setStep] = useState("upload");
   const [imageData, setImageData] = useState(null);
   const [roomType, setRoomType] = useState(ROOM_TYPES[0]);
@@ -208,6 +215,9 @@ function FlowAnalyzer() {
       if (!res.ok) throw new Error(data.error || "analysis failed");
       setReport(data.report);
       setStep("result");
+      const newRemaining = Math.max(0, remaining - 1);
+      setRemaining(newRemaining);
+      sessionStorage.setItem("fa_analyses_remaining", String(newRemaining));
     } catch (err) {
       console.error(err);
       setErrorMsg("صار خلل بالتحليل. جربي كمان مرة.");
@@ -215,10 +225,19 @@ function FlowAnalyzer() {
     }
   };
 
-  const reset = () => { setImageData(null); setReport(null); setNotes(""); setRoomType(ROOM_TYPES[0]); setErrorMsg(""); setStep("upload"); };
+  const reset = () => {
+    setImageData(null); setReport(null); setNotes(""); setRoomType(ROOM_TYPES[0]); setErrorMsg("");
+    if (remaining <= 0) {
+      sessionStorage.removeItem("fa_paid_session");
+      sessionStorage.removeItem("fa_analyses_remaining");
+      setUnlocked(false);
+    } else {
+      setStep("upload");
+    }
+  };
 
   if (!unlocked) {
-    return <PaywallGate onUnlock={() => setUnlocked(true)} />;
+    return <PaywallGate onUnlock={(count) => { setRemaining(count); setUnlocked(true); }} />;
   }
 
   return (
@@ -227,6 +246,7 @@ function FlowAnalyzer() {
         <p className="fa-eyebrow">هندسة التدفق</p>
         <h1 className="fa-hero-title">افحصي تدفق مساحتك</h1>
         <p className="fa-hero-sub">ارفعي صورة لأي ركن ببيتك، وخدي تحليل شامل: التصميم العام، الألوان، الإضاءة، الإرغونوميا، والفنغ شوي — بدقيقة.</p>
+        <p style={{ fontSize: 13, color: "#7C8A72", fontWeight: 700, marginTop: -8 }}>باقيلك {remaining} من أصل {ANALYSES_PER_PAYMENT} تحليل بهاي الدفعة</p>
         <FlowDivider drawn={step === "upload"} />
 
         {step === "upload" && (
