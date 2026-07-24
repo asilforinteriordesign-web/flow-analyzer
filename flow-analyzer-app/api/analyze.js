@@ -1,11 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
-
-// إعداد عميل Supabase باستخدام المفاتيح المحفوظة في البيئة
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -18,22 +10,32 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "الصورة مفقودة" });
     }
 
-    // 1. التحقق من رصيد المستخدم في Supabase (إن تم إرسال userId)
-    if (userId) {
-      const { data: userProfile, error: profileError } = await supabase
-        .from("users") // أو اسم الجدول الخاص بك مثل profiles
-        .select("credits")
-        .eq("id", userId)
-        .single();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      if (profileError) {
-        console.error("Supabase profile error:", profileError);
-      } else if (userProfile && userProfile.credits <= 0) {
-        // إذا كان الرصيد 0، نرجع خطأ الدفع مطلوب
-        return res.status(402).json({ 
-          error: "لقد نفد رصيد الصور المتاح لديك. يرجى الشراء للمتابعة.",
-          requiresPayment: true 
+    // 1. التحقق من رصيد المستخدم في Supabase (إن وجد userId ومفاتيح Supabase)
+    if (userId && supabaseUrl && supabaseKey) {
+      try {
+        const checkRes = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${userId}&select=credits`, {
+          headers: {
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${supabaseKey}`,
+          },
         });
+
+        if (checkRes.ok) {
+          const usersData = await checkRes.json();
+          const userProfile = usersData[0];
+
+          if (userProfile && userProfile.credits <= 0) {
+            return res.status(402).json({ 
+              error: "لقد نفد رصيد الصور المتاح لديك. يرجى الشراء للمتابعة.",
+              requiresPayment: true 
+            });
+          }
+        }
+      } catch (sbErr) {
+        console.error("Supabase check error:", sbErr);
       }
     }
 
@@ -92,19 +94,35 @@ export default async function handler(req, res) {
     const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
     const report = JSON.parse(cleaned);
 
-    // 2. خصم محاولة واحدة من رصيد المستخدم بعد نجاح التحليل
-    if (userId) {
-      const { data: userProfile } = await supabase
-        .from("users")
-        .select("credits")
-        .eq("id", userId)
-        .single();
-
-      if (userProfile && userProfile.credits > 0) {
-        await supabase
-          .from("users")
-          .update({ credits: userProfile.credits - 1 })
-          .eq("id", userId);
+    // 2. خصم محاولة واحدة بعد نجاح التحليل
+    if (userId && supabaseUrl && supabaseKey) {
+      try {
+        const fetchUserRes = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${userId}&select=credits`, {
+          headers: {
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${supabaseKey}`,
+          },
+        });
+        
+        if (fetchUserRes.ok) {
+          const usersData = await fetchUserRes.json();
+          const userProfile = usersData[0];
+          
+          if (userProfile && userProfile.credits > 0) {
+            await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${userId}`, {
+              method: "PATCH",
+              headers: {
+                "apikey": supabaseKey,
+                "Authorization": `Bearer ${supabaseKey}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+              },
+              body: JSON.stringify({ credits: userProfile.credits - 1 }),
+            });
+          }
+        }
+      } catch (deductErr) {
+        console.error("Deduct credits error:", deductErr);
       }
     }
 
