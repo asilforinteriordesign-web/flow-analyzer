@@ -37,7 +37,7 @@
   .fa-select, .fa-textarea { width: 100%; font-family: 'Tajawal', sans-serif; font-size: 14.5px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 3px; background: #FFFDF8; color: var(--ink); }
   .fa-select:focus, .fa-textarea:focus, .fa-dropzone:focus-visible, .fa-btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
   .fa-textarea { resize: vertical; min-height: 68px; }
-  .fa-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: var(--paper); font-family: 'Tajawal', sans-serif; font-weight: 700; font-size: 14.5px; border: none; border-radius: 3px; padding: 13px 22px; cursor: pointer; width: 100%; justify-content: center; }
+  .fa-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: var(--paper); font-family: 'Tajawal', sans-serif; font-weight: 700; font-size: 14.5px; border: none; border-radius: 3px; padding: 13px 22px; cursor: pointer; width: 100%; justify-content: center; text-decoration: none; }
   .fa-btn:hover { background: #142019; }
   .fa-btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 10px; }
   .fa-btn-ghost:hover { background: var(--paperSoft); }
@@ -65,13 +65,14 @@
   .fa-error { text-align: center; padding: 40px 14px; }
   .fa-error p { font-size: 14.5px; margin-bottom: 18px; }
   .fa-brand-foot { text-align: center; margin-top: 28px; font-size: 11.5px; color: #9BA396; letter-spacing: .5px; }
+  .fa-credits-badge { text-align: center; font-size: 12px; color: var(--brass); font-weight: 700; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useRef, useCallback } = React;
+const { useState, useRef, useCallback, useEffect } = React;
 
 const ROOM_TYPES = ["مطبخ", "غرفة معيشة", "غرفة نوم", "غرفة أطفال", "حمام", "مساحة عمل / مكتب", "أخرى"];
 const SECTION_META = {
@@ -125,7 +126,26 @@ function FlowAnalyzer() {
   const [report, setReport] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [credits, setCredits] = useState(1); // عدد التجنيات المجانية المتاحة
+  const [userId, setUserId] = useState("");
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    // إعداد معرّف ورصيد الزائر المحفوظ بالمتصفح
+    let storedId = localStorage.getItem("fa_user_id");
+    if (!storedId) {
+      storedId = "usr_" + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem("fa_user_id", storedId);
+    }
+    setUserId(storedId);
+
+    let storedCredits = localStorage.getItem("fa_credits");
+    if (storedCredits === null) {
+      storedCredits = "1"; // منح تجربة مجانية واحدة
+      localStorage.setItem("fa_credits", storedCredits);
+    }
+    setCredits(parseInt(storedCredits, 10));
+  }, []);
 
   const handleFile = useCallback((file) => {
     if (!file || !file.type.startsWith("image/")) {
@@ -146,15 +166,34 @@ function FlowAnalyzer() {
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]); };
 
   const runAnalysis = async () => {
+    // فحص الرصيد محلياً قبل الاستدلال
+    if (credits <= 0) {
+      setStep("paywall");
+      return;
+    }
+
     setStep("loading"); setErrorMsg("");
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: imageData.base64, mediaType: imageData.mediaType, roomType, notes }),
+        body: JSON.stringify({ imageBase64: imageData.base64, mediaType: imageData.mediaType, roomType, notes, userId }),
       });
+
       const data = await res.json();
+
+      if (res.status === 402 || data.requiresPayment) {
+        setStep("paywall");
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || "analysis failed");
+
+      // خصم محاولة من المتصفح عند نجاح التحليل
+      const newCredits = Math.max(0, credits - 1);
+      setCredits(newCredits);
+      localStorage.setItem("fa_credits", newCredits.toString());
+
       setReport(data.report);
       setStep("result");
     } catch (err) {
@@ -172,6 +211,13 @@ function FlowAnalyzer() {
         <p className="fa-eyebrow">هندسة التدفق</p>
         <h1 className="fa-hero-title">افحصي تدفق مساحتك</h1>
         <p className="fa-hero-sub">ارفعي صورة لأي ركن ببيتك، وخدي تحليل شامل: التصميم العام، الألوان، الإضاءة، الإرغونوميا، والفنغ شوي — بدقيقة.</p>
+        
+        {credits > 0 ? (
+          <p className="fa-credits-badge">✦ متوفر لديكِ {credits} تجربة مجانية</p>
+        ) : (
+          <p className="fa-credits-badge" style={{ color: "var(--clay)" }}>🔒 استهلكتِ تجربتكِ المجانية</p>
+        )}
+
         <FlowDivider drawn={step === "upload"} />
 
         {step === "upload" && (
@@ -210,6 +256,23 @@ function FlowAnalyzer() {
 
         {step === "loading" && (
           <div className="fa-loading"><div className="fa-spin" /><p>عم نلاحظ التدفق، الألوان، والإضاءة بمساحتك...</p></div>
+        )}
+
+        {step === "paywall" && (
+          <div className="fa-cta" id="PaywallGate" style={{ marginTop: 30, background: "#FFFDF8" }}>
+            <h3 style={{ fontFamily: "El Messiri, serif", fontSize: 20, color: "var(--clay)", margin: "0 0 10px" }}>
+              لقد استهلكتِ رصيد الصور المجاني
+            </h3>
+            <p style={{ fontSize: 15, color: "#454F49", lineHeight: 1.7, marginBottom: 20 }}>
+              لتحليل المزيد من المساحات والحصول على توصيات هندسة التدفق، يمكنكِ شحن حزمة التحليلات الآن.
+            </p>
+            <button className="fa-btn" style={{ padding: "14px 28px", fontSize: 16 }}>
+              💳 اشحني رصيد التحليلات الآن
+            </button>
+            <button className="fa-btn fa-btn-ghost" onClick={reset} style={{ marginTop: 12 }}>
+              الرجوع للرئيسية
+            </button>
+          </div>
         )}
 
         {step === "error" && (
