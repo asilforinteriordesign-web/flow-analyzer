@@ -1,13 +1,40 @@
-// هاد الملف بيشتغل على السيرفر (مش بالمتصفح)، فمفتاح الـ API بيضل مخفي وآمن.
+import { createClient } from "@supabase/supabase-js";
+
+// إعداد عميل Supabase باستخدام المفاتيح المحفوظة في البيئة
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { imageBase64, mediaType, roomType, notes } = req.body || {};
+    const { imageBase64, mediaType, roomType, notes, userId } = req.body || {};
+    
     if (!imageBase64 || !mediaType) {
       return res.status(400).json({ error: "الصورة مفقودة" });
+    }
+
+    // 1. التحقق من رصيد المستخدم في Supabase (إن تم إرسال userId)
+    if (userId) {
+      const { data: userProfile, error: profileError } = await supabase
+        .from("users") // أو اسم الجدول الخاص بك مثل profiles
+        .select("credits")
+        .eq("id", userId)
+        .single();
+
+      if (profileError) {
+        console.error("Supabase profile error:", profileError);
+      } else if (userProfile && userProfile.credits <= 0) {
+        // إذا كان الرصيد 0، نرجع خطأ الدفع مطلوب
+        return res.status(402).json({ 
+          error: "لقد نفد رصيد الصور المتاح لديك. يرجى الشراء للمتابعة.",
+          requiresPayment: true 
+        });
+      }
     }
 
     const systemPrompt = `إنتِ خبيرة تصميم داخلي وإرغونوميا فلسطينية، عندك منهجية اسمها "هندسة التدفق" بتجمع بين الإرغونوميا العلمية ومبادئ الفنغ شوي، وبتخاطبي نساء عاملات مشغولات بدهن بيت مرتاح وعملي بدون ما ياخد وقتهن. حللي صورة المساحة يلي رح توصلك، ورجعي تحليل شامل يغطي: التصميم العام وتدفق الحركة، الألوان، الإضاءة، الإرغونوميا، والفنغ شوي/الطاقة. اكتبي بالعربي بلهجة فلسطينية/شامية بسيطة ومباشرة، بدون فصحى متكلفة.
@@ -64,6 +91,22 @@ export default async function handler(req, res) {
 
     const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
     const report = JSON.parse(cleaned);
+
+    // 2. خصم محاولة واحدة من رصيد المستخدم بعد نجاح التحليل
+    if (userId) {
+      const { data: userProfile } = await supabase
+        .from("users")
+        .select("credits")
+        .eq("id", userId)
+        .single();
+
+      if (userProfile && userProfile.credits > 0) {
+        await supabase
+          .from("users")
+          .update({ credits: userProfile.credits - 1 })
+          .eq("id", userId);
+      }
+    }
 
     return res.status(200).json({ report });
   } catch (err) {
