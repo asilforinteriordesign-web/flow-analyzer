@@ -64,7 +64,12 @@
   .fa-cta p { margin: 0 0 12px; font-size: 14px; color: #454F49; }
   .fa-error { text-align: center; padding: 40px 14px; }
   .fa-error p { font-size: 14.5px; margin-bottom: 18px; }
-  .fa-brand-foot { text-align: center; margin-top: 28px; font-size: 11.5px; color: #9BA396; letter-spacing: .5px; }
+  ..fa-brand-foot { text-align: center; margin-top: 28px; font-size: 11.5px; color: #9BA396; letter-spacing: .5px; }
+.fa-footer { margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line); text-align: center; }
+.fa-footer-links { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; }
+.fa-footer-links a { font-size: 12.5px; color: #6B756A; text-decoration: none; }
+.fa-footer-links a:hover { color: var(--clay); text-decoration: underline; }
+.fa-footer-copyright { font-size: 11px; color: #9BA396; }
   .fa-credits-badge { text-align: center; font-size: 12px; color: var(--brass); font-weight: 700; margin-bottom: 12px; }
 </style>
 </head>
@@ -312,7 +317,16 @@ function FlowAnalyzer() {
             <button className="fa-btn fa-btn-ghost" onClick={reset}>فحص مساحة تانية</button>
           </div>
         )}
-        <p className="fa-brand-foot">هندسة التدفق — إرغونوميا × فنغ شوي</p>
+        <footer className="fa-footer">
+  <p className="fa-brand-foot" style={{ marginTop: 0, marginBottom: 14 }}>هندسة التدفق — إرغونوميا × فنغ شوي</p>
+  <div className="fa-footer-links">
+    <a href="/privacy.html">سياسة الخصوصية</a>
+    <a href="/terms.html">الشروط والأحكام</a>
+    <a href="/refund-policy.html">سياسة الاسترجاع</a>
+    <a href="ergoharmony2026@gmail.com">تواصلي معنا</a>
+  </div>
+  <p className="fa-footer-copyright">© {new Date().getFullYear()} هندسة التدفق. جميع الحقوق محفوظة.</p>
+</footer>
       </div>
     </div>
   );
