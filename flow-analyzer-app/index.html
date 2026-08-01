@@ -131,11 +131,12 @@ function FlowAnalyzer() {
   const [report, setReport] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  const [credits, setCredits] = useState(1);
+  const [credits, setCredits] = useState(1); // عدد التجربات المجانية المتاحة
   const [userId, setUserId] = useState("");
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    // إعداد معرّف ورصيد الزائر المحفوظ بالمتصفح
     let storedId = localStorage.getItem("fa_user_id");
     if (!storedId) {
       storedId = "usr_" + Math.random().toString(36).substr(2, 9);
@@ -145,7 +146,7 @@ function FlowAnalyzer() {
 
     let storedCredits = localStorage.getItem("fa_credits");
     if (storedCredits === null) {
-      storedCredits = "1";
+      storedCredits = "1"; // منح تجربة مجانية واحدة
       localStorage.setItem("fa_credits", storedCredits);
     }
     setCredits(parseInt(storedCredits, 10));
@@ -170,6 +171,7 @@ function FlowAnalyzer() {
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]); };
 
   const runAnalysis = async () => {
+    // فحص الرصيد محلياً قبل الاستدلال
     if (credits <= 0) {
       setStep("paywall");
       return;
@@ -192,6 +194,7 @@ function FlowAnalyzer() {
 
       if (!res.ok) throw new Error(data.error || "analysis failed");
 
+      // خصم محاولة من المتصفح عند نجاح التحليل
       const newCredits = Math.max(0, credits - 1);
       setCredits(newCredits);
       localStorage.setItem("fa_credits", newCredits.toString());
@@ -268,7 +271,7 @@ function FlowAnalyzer() {
             <p style={{ fontSize: 15, color: "#454F49", lineHeight: 1.7, marginBottom: 20 }}>
               لتحليل المزيد من المساحات والحصول على توصيات هندسة التدفق، يمكنكِ شحن حزمة التحليلات الآن.
             </p>
-            
+            <a
               href="https://buy.stripe.com/test_7sY8wP0PTb7N3bMfiHak000"
               target="_blank"
               rel="noopener noreferrer"
@@ -309,7 +312,7 @@ function FlowAnalyzer() {
             )}
             <div className="fa-cta" id="PaywallGate">
               <p>بدك خطة تنفيذية كاملة مبنية على مساحتك بالضبط؟</p>
-              
+              <a
                 href="https://calendly.com/asilforinteriordesign/30min"
                 target="_blank"
                 rel="noopener noreferrer"
